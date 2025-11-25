@@ -5,6 +5,25 @@ const XLSX = require('xlsx');
 const path = require('path');
 const os = require('os');
 
+// 清理规格文本，去掉时间和"已购"字样
+function cleanSpecText(specText) {
+  if (!specText) return specText;
+  
+  // 去掉日期格式：2025-10-23已购：
+  specText = specText.replace(/^\d{4}-\d{1,2}-\d{1,2}已购：/, '');
+  
+  // 去掉中文日期格式：2025年10月22日已购：
+  specText = specText.replace(/^\d{4}年\d{1,2}月\d{1,2}日已购：/, '');
+  
+  // 去掉其他可能的"已购："格式
+  specText = specText.replace(/^.*?已购：/, '');
+  
+  // 清理多余的空白字符
+  specText = specText.replace(/\s+/g, ' ').trim();
+  
+  return specText;
+}
+
 // 从Excel文件读取配置
 function readConfigFromExcel() {
   try {
@@ -40,12 +59,12 @@ function generateResultExcel(results, downloadPath = null) {
     // 准备主评论数据
     const mainCommentsData = [];
     // 添加表头
-    mainCommentsData.push(['商品名称', '评论序号', '评论内容', '爬取时间']);
+    mainCommentsData.push(['商品名称', '商品规格', '评论序号', '评论内容', '爬取时间']);
     
     // 准备追评数据
     const additionalCommentsData = [];
     // 添加表头
-    additionalCommentsData.push(['商品名称', '评论对序号', '原评论', '追评', '爬取时间']);
+    additionalCommentsData.push(['商品名称', '商品规格', '评论对序号', '原评论', '追评', '爬取时间']);
     
     // 添加数据
     results.forEach(result => {
@@ -55,10 +74,15 @@ function generateResultExcel(results, downloadPath = null) {
       // 添加主评论
       if (result.comments && result.comments.length > 0) {
         result.comments.forEach((comment, index) => {
+          // 使用评论级别的规格信息，如果没有则使用商品级别的规格信息
+          const spec = comment.spec || result.productSpec || '';
+          const content = typeof comment === 'string' ? comment : comment.text;
+          
           mainCommentsData.push([
             result.productName,
+            spec,
             `评论${index + 1}`,
-            comment,
+            content,
             timeStr
           ]);
         });
@@ -67,8 +91,12 @@ function generateResultExcel(results, downloadPath = null) {
       // 添加评论对
       if (result.commentPairs && result.commentPairs.length > 0) {
         result.commentPairs.forEach((pair, index) => {
+          // 使用评论级别的规格信息，如果没有则使用商品级别的规格信息
+          const spec = pair.spec || result.productSpec || '';
+          
           additionalCommentsData.push([
             result.productName,
+            spec,
             `评论对${index + 1}`,
             pair.originalComment || '',
             pair.additionalComment || '',
@@ -192,7 +220,52 @@ async function scrapeProductComments(productConfig, browser) {
       return [];
     }
     
-    console.log('✅ 登录成功，开始爬取评论...');
+    console.log('✅ 登录成功，开始爬取商品规格...');
+    
+    // 爬取商品规格信息（作为备用规格信息）
+    let productSpec = '';
+    try {
+      console.log('📋 开始爬取商品规格（作为备用规格信息）...');
+      
+      // 尝试使用CSS选择器定位商品规格
+      try {
+        const specElement = await page.waitForSelector('.meta--PLijz6qf', { timeout: 5000 });
+        if (specElement) {
+          productSpec = await specElement.innerText();
+          console.log('✅ 通过CSS选择器成功获取商品规格（备用）:', productSpec);
+        }
+      } catch (cssError) {
+        console.log('通过CSS选择器未找到商品规格，尝试其他方法...');
+        
+        // 尝试通过class名称模糊匹配
+        try {
+          const specElements = await page.$$('div[class*="meta"]');
+          for (const element of specElements) {
+            const text = await element.innerText();
+            if (text && (text.includes('已购') || text.includes('规格') || text.includes('购买'))) {
+              productSpec = text;
+              console.log('✅ 通过模糊匹配成功获取商品规格（备用）:', productSpec);
+              break;
+            }
+          }
+        } catch (generalError) {
+          console.log('⚠️ 未能获取到商品规格信息（备用）');
+        }
+      }
+      
+      // 清理规格文本，移除多余的空白字符和时间信息
+      if (productSpec) {
+        productSpec = productSpec.replace(/\s+/g, ' ').trim();
+        productSpec = cleanSpecText(productSpec);
+      }
+      
+      console.log('📝 注意：每条评论将单独提取其对应的规格信息，此处的规格信息仅作为备用');
+      
+    } catch (error) {
+      console.log('⚠️ 爬取商品规格时出错:', error);
+    }
+    
+    console.log('📋 商品规格爬取完成，开始爬取评论...');
     
     // 点击"查看全部评价"按钮
     try {
@@ -206,27 +279,66 @@ async function scrapeProductComments(productConfig, browser) {
       console.log('⚠️ 未找到"查看全部评价"按钮，可能已经显示全部评论');
     }
     
-    // 辅助函数：提取当前已加载的评论
+    // 辅助函数：提取当前已加载的评论（包含规格信息）
     const extractComments = async () => {
       return await page.evaluate(() => {
-        // 使用更精确的选择器，只选择评论内容区域
-        const elements = document.querySelectorAll('.content--uonoOhaz');
+        // 清理规格文本，去掉时间和"已购"字样
+        function cleanSpecText(specText) {
+          if (!specText) return specText;
+          
+          // 去掉日期格式：2025-10-23已购：
+          specText = specText.replace(/^\d{4}-\d{1,2}-\d{1,2}已购：/, '');
+          
+          // 去掉中文日期格式：2025年10月22日已购：
+          specText = specText.replace(/^\d{4}年\d{1,2}月\d{1,2}日已购：/, '');
+          
+          // 去掉其他可能的"已购："格式
+          specText = specText.replace(/^.*?已购：/, '');
+          
+          // 清理多余的空白字符
+          specText = specText.replace(/\s+/g, ' ').trim();
+          
+          return specText;
+        }
+        
+        // 获取所有评论项
+        const commentItems = document.querySelectorAll('.Comment--H5QmJwe9');
         const comments = [];
         
-        for (let i = 0; i < elements.length; i++) {
-          const text = elements[i].innerText.trim();
+        commentItems.forEach(item => {
+          // 提取评论内容
+          const contentElement = item.querySelector('.content--uonoOhaz');
+          if (!contentElement) return;
+          
+          const text = contentElement.innerText.trim();
+          
           // 过滤掉模板化的评论内容
           if (text.length > 5 &&
               /[一-龯]/.test(text) &&
               !text.includes('该用户觉得商品非常好') &&
               !text.includes('该用户未填写评价内容') &&
               !text.includes('该用户觉得商品')) {
-            // 去重
-            if (comments.indexOf(text) === -1) {
-              comments.push(text);
+           
+            // 提取该评论对应的规格信息
+            let spec = '';
+            const specElement = item.querySelector('.meta--PLijz6qf');
+            if (specElement) {
+              spec = specElement.innerText.trim();
+              // 清理规格文本，移除多余的空白字符和时间信息
+              spec = spec.replace(/\s+/g, ' ').trim();
+              spec = cleanSpecText(spec);
+            }
+            
+            // 去重检查（基于评论内容）
+            const isDuplicate = comments.some(comment => comment.text === text);
+            if (!isDuplicate) {
+              comments.push({
+                text: text,
+                spec: spec
+              });
             }
           }
-        }
+        });
         
         return comments;
       });
@@ -336,35 +448,6 @@ async function scrapeProductComments(productConfig, browser) {
       }
     };
 
-    // 检查并点击"加载更多"按钮
-    const clickLoadMoreButton = async () => {
-      return await page.evaluate(() => {
-        let loadMoreBtn = document.querySelector('.comment-show-more');
-        if (!loadMoreBtn) {
-          // 尝试查找包含"加载更多"文本的按钮
-          const buttons = document.querySelectorAll('button, span, div');
-          for (let i = 0; i < buttons.length; i++) {
-            const el = buttons[i];
-            if (el.textContent && el.textContent.includes('加载更多') && el.offsetParent !== null) {
-              loadMoreBtn = el;
-              break;
-            }
-          }
-        }
-        
-        // 如果还没找到，尝试查找包含"more"的元素
-        if (!loadMoreBtn) {
-          loadMoreBtn = document.querySelector('[class*="more"]') ||
-                         document.querySelector('[data-spm-click*="more"]');
-        }
-
-        if (loadMoreBtn && loadMoreBtn.offsetParent !== null) { // 确保可见
-          loadMoreBtn.click();
-          return true;
-        }
-        return false;
-      });
-    };
 
     // 检查是否已加载全部评论
     const checkAllCommentsLoaded = async () => {
@@ -388,13 +471,6 @@ async function scrapeProductComments(productConfig, browser) {
 
       // 等待新内容加载（通常需要 1~2 秒）
       await page.waitForTimeout(2000);
-
-      // 尝试点击"加载更多"按钮（常见于天猫）
-      const buttonClicked = await clickLoadMoreButton();
-      if (buttonClicked) {
-        console.log('🖱️ 点击"加载更多"按钮...');
-        await page.waitForTimeout(1500);
-      }
 
       // 再次滚动到底（确保触发懒加载）
       await scrollToBottom(commentsContainer);
@@ -429,7 +505,14 @@ async function scrapeProductComments(productConfig, browser) {
     // 最终提取全部评论
     const allComments = await extractComments();
     console.log(`🎉 共提取到 ${allComments.length} 条评论！`);
-    console.table(allComments);
+    
+    // 显示评论内容和对应的规格
+    console.log('评论内容和规格信息：');
+    allComments.forEach((comment, index) => {
+      console.log(`${index + 1}. 规格: ${comment.spec || '无规格信息'}`);
+      console.log(`   内容: ${comment.text}`);
+      console.log('---');
+    });
 
     // 爬取追评
     console.log('🔄 开始爬取追评...');
@@ -472,6 +555,25 @@ async function scrapeProductComments(productConfig, browser) {
       // 辅助函数：提取当前已加载的追评
       const extractAdditionalComments = async () => {
         return await page.evaluate(() => {
+          // 清理规格文本，去掉时间和"已购"字样
+          function cleanSpecText(specText) {
+            if (!specText) return specText;
+            
+            // 去掉日期格式：2025-10-23已购：
+            specText = specText.replace(/^\d{4}-\d{1,2}-\d{1,2}已购：/, '');
+            
+            // 去掉中文日期格式：2025年10月22日已购：
+            specText = specText.replace(/^\d{4}年\d{1,2}月\d{1,2}日已购：/, '');
+            
+            // 去掉其他可能的"已购："格式
+            specText = specText.replace(/^.*?已购：/, '');
+            
+            // 清理多余的空白字符
+            specText = specText.replace(/\s+/g, ' ').trim();
+            
+            return specText;
+          }
+          
           // 使用CSS选择器提取原评论和追评
           const commentPairs = [];
           
@@ -479,6 +581,16 @@ async function scrapeProductComments(productConfig, browser) {
           const commentItems = document.querySelectorAll('.Comment--H5QmJwe9');
           
           commentItems.forEach(item => {
+            // 提取该评论对应的规格信息
+            let spec = '';
+            const specElement = item.querySelector('.meta--PLijz6qf');
+            if (specElement) {
+              spec = specElement.innerText.trim();
+              // 清理规格文本，移除多余的空白字符和时间信息
+              spec = spec.replace(/\s+/g, ' ').trim();
+              spec = cleanSpecText(spec);
+            }
+            
             // 提取原评论 - 第一个content--uonoOhaz
             let originalComment = '';
             try {
@@ -547,7 +659,8 @@ async function scrapeProductComments(productConfig, browser) {
             if (originalComment || additionalComment) {
               commentPairs.push({
                 originalComment: originalComment,
-                additionalComment: additionalComment
+                additionalComment: additionalComment,
+                spec: spec
               });
             }
           });
@@ -604,11 +717,19 @@ async function scrapeProductComments(productConfig, browser) {
       // 最终提取全部追评
       const allAdditionalComments = await extractAdditionalComments();
       console.log(`🎉 共提取到 ${allAdditionalComments.commentPairs.length} 对原评论和追评！`);
-      console.table(allAdditionalComments.commentPairs);
+      
+      // 显示追评内容和对应的规格
+      console.log('追评内容和规格信息：');
+      allAdditionalComments.commentPairs.forEach((pair, index) => {
+        console.log(`${index + 1}. 规格: ${pair.spec || '无规格信息'}`);
+        console.log(`   原评论: ${pair.originalComment || '无'}`);
+        console.log(`   追评: ${pair.additionalComment || '无'}`);
+        console.log('---');
+      });
       
       // 将评论和追评转换为文本
       const text = allAdditionalComments.commentPairs.map((pair, index) => {
-        let result = `评论对${index + 1}:\n`;
+        let result = `评论对${index + 1} (规格: ${pair.spec || '无'}):\n`;
         if (pair.originalComment) {
           result += `原评论: ${pair.originalComment}\n`;
         }
@@ -632,6 +753,7 @@ async function scrapeProductComments(productConfig, browser) {
       // 返回结果对象
       return {
         productName: productConfig['商品名称'],
+        productSpec: productSpec, // 保留商品级别的规格信息作为备用
         comments: allComments,
         commentPairs: allAdditionalComments.commentPairs || []
       };
@@ -640,7 +762,7 @@ async function scrapeProductComments(productConfig, browser) {
       
       // 将主评论转换为文本
       const text = allComments.map((comment, index) => {
-        return `评论${index + 1}: ${comment}`;
+        return `评论${index + 1} (规格: ${comment.spec || '无'}):\n${comment.text}`;
       }).join('\n\n');
       
       // 复制到剪贴板
@@ -657,6 +779,7 @@ async function scrapeProductComments(productConfig, browser) {
       // 返回结果对象（只有主评论）
       return {
         productName: productConfig['商品名称'],
+        productSpec: productSpec, // 保留商品级别的规格信息作为备用
         comments: allComments,
         commentPairs: []
       };
