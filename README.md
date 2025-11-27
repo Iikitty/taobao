@@ -10,10 +10,12 @@
 
 ### 安装依赖
 ```bash
-npm install
-npm install playwright
+git clone https://github.com/Iikitty/taobao.git #下载资源
+cd taobao #进入文件夹
+npm install #安装依赖
+npm install playwright #安装playwright
 npx playwright install chromium  # 安装浏览器
-npm install xlsx
+npm install xlsx #安装excel依赖
 ```
 
 ## 使用方法
@@ -54,4 +56,4 @@ node 爬取.js
 - 请确保cookie有效且未过期
 - 爬取过程中请保持网络连接稳定
 - 大数量评论爬取可能需要较长时间
-- 可以去edge浏览器获取扩展，有个Cookie-Editor的扩展。去淘宝登录，然后用刚下载的扩展有个导出的功能，导出为Json格式就行
+- 可以去edge浏览器获取扩展，有个Cookie-Editor的扩展。去淘宝登录，然后用刚下载的扩展有个导出的功能，导出为Json格式到根目录就行
