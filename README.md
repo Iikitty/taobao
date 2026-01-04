@@ -10,8 +10,12 @@
 
 ### 安装依赖
 ```bash
-npm install
+git clone https://github.com/Iikitty/taobao.git #下载资源
+cd taobao #进入文件夹
+npm install #安装依赖
+npm install playwright #安装playwright
 npx playwright install chromium  # 安装浏览器
+npm install xlsx #安装excel依赖
 ```
 
 ## 使用方法
