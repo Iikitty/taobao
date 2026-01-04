@@ -1,0 +1,863 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>淘宝评论爬虫配置管理</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 100%;
+            margin: 0 auto;
+            padding: 0 10px;
+        }
+
+        .header {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .header h1 {
+            color: #667eea;
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            width: 100%;
+        }
+
+        .panel {
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            width: 100%;
+            overflow: hidden;
+        }
+
+        .panel h2 {
+            color: #667eea;
+            font-size: 24px;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #667eea;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            color: #333;
+            font-weight: bold;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+            box-sizing: border-box;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .form-group textarea {
+            min-height: 100px;
+            resize: vertical;
+            font-family: monospace;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-success {
+            background: #48bb78;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #38a169;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(72, 187, 120, 0.4);
+        }
+
+        .btn-danger {
+            background: #f56565;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #e53e3e;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(245, 101, 101, 0.4);
+        }
+
+        .btn-warning {
+            background: #ed8936;
+            color: white;
+        }
+
+        .btn-warning:hover {
+            background: #dd6b20;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(237, 137, 54, 0.4);
+        }
+
+        .config-list {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 10px;
+        }
+
+        .config-item {
+            background: #f7fafc;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            border-left: 4px solid #667eea;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+        }
+
+        .config-item h3 {
+            color: #667eea;
+            font-size: 16px;
+            margin-bottom: 8px;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+        }
+
+        .config-item p {
+            color: #666;
+            font-size: 13px;
+            margin-bottom: 5px;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            line-height: 1.5;
+        }
+
+        .config-item .actions {
+            margin-top: 10px;
+        }
+
+        .log-panel {
+            background: #1a202c;
+            color: #a0aec0;
+            padding: 15px;
+            border-radius: 8px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+        }
+
+        .log-entry {
+            margin-bottom: 5px;
+            padding: 5px;
+            border-radius: 4px;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+        }
+
+        .log-entry.info {
+            color: #68d391;
+        }
+
+        .log-entry.error {
+            color: #fc8181;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-bottom: 15px;
+        }
+
+        .status-badge.running {
+            background: #c6f6d5;
+            color: #22543d;
+        }
+
+        .status-badge.stopped {
+            background: #fed7d7;
+            color: #742a2a;
+        }
+
+        .file-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .file-item {
+            background: #f7fafc;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .file-item .file-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .file-item .file-name {
+            color: #667eea;
+            font-weight: bold;
+            font-size: 14px;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+        }
+
+        .file-item .file-meta {
+            color: #666;
+            font-size: 12px;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+        }
+
+        .full-width {
+            grid-column: 1 / -1;
+        }
+
+        .tabs {
+            display: flex;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #e0e0e0;
+            flex-wrap: wrap;
+        }
+
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            color: #666;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+
+        .tab.active {
+            color: #667eea;
+            border-bottom: 3px solid #667eea;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .alert {
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            display: none;
+        }
+
+        .alert.show {
+            display: block;
+        }
+
+        .alert.success {
+            background: #c6f6d5;
+            color: #22543d;
+        }
+
+        .alert.error {
+            background: #fed7d7;
+            color: #742a2a;
+        }
+
+        .help-text {
+            color: #718096;
+            font-size: 12px;
+            margin-top: 5px;
+        }
+
+        /* 确认对话框样式 */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-overlay.show {
+            display: flex;
+        }
+
+        .modal {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            max-width: 400px;
+            width: 90%;
+            text-align: center;
+        }
+
+        .modal h3 {
+            color: #667eea;
+            font-size: 20px;
+            margin-bottom: 15px;
+        }
+
+        .modal p {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 20px;
+        }
+
+        .modal-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        @media (max-width: 1200px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 0 5px;
+            }
+            
+            .header {
+                padding: 20px;
+            }
+            
+            .header h1 {
+                font-size: 24px;
+            }
+            
+            .panel {
+                padding: 15px;
+            }
+            
+            .btn {
+                padding: 10px 16px;
+                font-size: 13px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🛒 淘宝评论爬虫配置管理</h1>
+            <p>可视化配置爬取参数，一键启动爬虫</p>
+        </div>
+
+        <div class="main-content">
+            <!-- 配置管理面板 -->
+            <div class="panel">
+                <h2>⚙️ 配置管理</h2>
+                
+                <div class="tabs">
+                    <div class="tab active" onclick="switchTab('product')">商品配置</div>
+                    <div class="tab" onclick="switchTab('cookie')">Cookie配置</div>
+                </div>
+
+                <div id="alert" class="alert"></div>
+
+                <!-- 商品配置 -->
+                <div id="product-tab" class="tab-content active">
+                    <div class="form-group">
+                        <label>商品名称</label>
+                        <input type="text" id="productName" placeholder="输入商品名称">
+                    </div>
+                    <div class="form-group">
+                        <label>商品网址</label>
+                        <input type="text" id="productUrl" placeholder="输入淘宝商品网址">
+                    </div>
+                    <div class="form-group">
+                        <label>评论总数</label>
+                        <input type="number" id="commentCount" placeholder="默认1000" value="1000">
+                    </div>
+                    <div class="form-group">
+                        <label>追评总数</label>
+                        <input type="number" id="additionalCount" placeholder="默认100" value="100">
+                    </div>
+                    <div class="form-group">
+                        <label>下载路径</label>
+                        <input type="text" id="downloadPath" placeholder="./save_data/" value="./save_data/">
+                        <p class="help-text">留空则使用默认路径 ./save_data/</p>
+                    </div>
+                    <button class="btn btn-primary" onclick="addConfig()">➕ 添加并保存配置</button>
+                    <button class="btn btn-warning" onclick="loadConfig()">📂 加载配置</button>
+                    <button class="btn btn-danger" onclick="confirmClearConfig()">🗑️ 清空配置</button>
+
+                    <div style="margin-top: 20px;">
+                        <h3>已添加的配置</h3>
+                        <div id="configList" class="config-list"></div>
+                    </div>
+                </div>
+
+                <!-- Cookie配置 -->
+                <div id="cookie-tab" class="tab-content">
+                    <div class="form-group">
+                        <label>Cookie (JSON格式)</label>
+                        <textarea id="cookieData" placeholder='[{"name": "...", "value": "...", "domain": "..."}]'></textarea>
+                        <p class="help-text">从浏览器开发者工具中复制Cookie，格式为JSON数组</p>
+                    </div>
+                    <button class="btn btn-success" onclick="saveCookie()">💾 保存Cookie</button>
+                    <button class="btn btn-warning" onclick="loadCookie()">📂 加载Cookie</button>
+                </div>
+            </div>
+
+            <!-- 爬虫控制面板 -->
+            <div class="panel">
+                <h2>🚀 爬虫控制</h2>
+                
+                <div id="statusBadge" class="status-badge stopped">● 已停止</div>
+                
+                <div style="margin-bottom: 20px;">
+                    <button class="btn btn-success" onclick="confirmStartCrawler()">▶️ 启动爬虫</button>
+                    <button class="btn btn-danger" onclick="confirmStopCrawler()">⏹️ 停止爬虫</button>
+                    <button class="btn btn-primary" onclick="refreshStatus()">🔄 刷新状态</button>
+                </div>
+
+                <h3>运行日志</h3>
+                <div id="logPanel" class="log-panel">
+                    <div class="log-entry">等待启动爬虫...</div>
+                </div>
+            </div>
+
+            <!-- 文件列表面板 -->
+            <div class="panel full-width">
+                <h2>📁 已保存的文件</h2>
+                <button class="btn btn-primary" onclick="loadFiles()">🔄 刷新文件列表</button>
+                <div id="fileList" class="file-list" style="margin-top: 15px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 确认对话框 -->
+    <div id="confirmModal" class="modal-overlay">
+        <div class="modal">
+            <h3 id="modalTitle">确认操作</h3>
+            <p id="modalMessage">确定要执行此操作吗？</p>
+            <div class="modal-buttons">
+                <button class="btn btn-success" onclick="confirmAction()">确定</button>
+                <button class="btn btn-danger" onclick="closeModal()">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let configs = [];
+        let pendingAction = null;
+
+        // 切换标签页
+        function switchTab(tab) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            
+            document.querySelector(`.tab[onclick="switchTab('${tab}')"]`).classList.add('active');
+            document.getElementById(`${tab}-tab`).classList.add('active');
+        }
+
+        // 显示提示信息
+        function showAlert(message, type = 'success') {
+            const alert = document.getElementById('alert');
+            alert.textContent = message;
+            alert.className = `alert ${type} show`;
+            setTimeout(() => alert.classList.remove('show'), 3000);
+        }
+
+        // 显示确认对话框
+        function showConfirm(title, message, action) {
+            document.getElementById('modalTitle').textContent = title;
+            document.getElementById('modalMessage').textContent = message;
+            document.getElementById('confirmModal').classList.add('show');
+            pendingAction = action;
+        }
+
+        // 关闭确认对话框
+        function closeModal() {
+            document.getElementById('confirmModal').classList.remove('show');
+            pendingAction = null;
+        }
+
+        // 执行确认的操作
+        function confirmAction() {
+            if (pendingAction) {
+                pendingAction();
+            }
+            closeModal();
+        }
+
+        // 添加配置（添加后自动保存）
+        function addConfig() {
+            const productName = document.getElementById('productName').value.trim();
+            const productUrl = document.getElementById('productUrl').value.trim();
+            const commentCount = parseInt(document.getElementById('commentCount').value) || 1000;
+            const additionalCount = parseInt(document.getElementById('additionalCount').value) || 100;
+            const downloadPath = document.getElementById('downloadPath').value.trim();
+
+            if (!productName || !productUrl) {
+                showAlert('请填写商品名称和网址', 'error');
+                return;
+            }
+
+            configs.push({
+                '商品名称': productName,
+                '商品网址': productUrl,
+                '评论总数': commentCount,
+                '追评总数': additionalCount,
+                '下载路径': downloadPath
+            });
+
+            renderConfigList();
+            clearForm();
+            
+            // 自动保存配置
+            saveConfigToServer();
+        }
+
+        // 清空表单
+        function clearForm() {
+            document.getElementById('productName').value = '';
+            document.getElementById('productUrl').value = '';
+            document.getElementById('commentCount').value = '1000';
+            document.getElementById('additionalCount').value = '100';
+            document.getElementById('downloadPath').value = './save_data/';
+        }
+
+        // 渲染配置列表
+        function renderConfigList() {
+            const list = document.getElementById('configList');
+            if (configs.length === 0) {
+                list.innerHTML = '<p style="color: #999; text-align: center;">暂无配置</p>';
+                return;
+            }
+
+            list.innerHTML = configs.map((config, index) => `
+                <div class="config-item">
+                    <h3>${config['商品名称']}</h3>
+                    <p><strong>网址:</strong> ${config['商品网址']}</p>
+                    <p><strong>评论总数:</strong> ${config['评论总数']}</p>
+                    <p><strong>追评总数:</strong> ${config['追评总数']}</p>
+                    <p><strong>下载路径:</strong> ${config['下载路径'] || './save_data/'}</p>
+                    <div class="actions">
+                        <button class="btn btn-danger" onclick="confirmRemoveConfig(${index})">删除</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // 确认删除配置
+        function confirmRemoveConfig(index) {
+            showConfirm(
+                '确认删除',
+                '确定要删除此配置吗？',
+                () => {
+                    configs.splice(index, 1);
+                    renderConfigList();
+                    saveConfigToServer();
+                    showAlert('配置已删除');
+                }
+            );
+        }
+
+        // 确认清空配置
+        function confirmClearConfig() {
+            if (configs.length === 0) {
+                showAlert('没有配置可清空', 'error');
+                return;
+            }
+            showConfirm(
+                '确认清空',
+                '确定要清空所有配置吗？此操作不可恢复！',
+                () => {
+                    configs = [];
+                    renderConfigList();
+                    saveConfigToServer();
+                    showAlert('配置已清空');
+                }
+            );
+        }
+
+        // 保存配置到服务器
+        async function saveConfigToServer() {
+            try {
+                const response = await fetch('/api/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ data: configs })
+                });
+                const result = await response.json();
+                if (result.success) {
+                    showAlert('配置已保存');
+                } else {
+                    showAlert(result.message, 'error');
+                }
+            } catch (error) {
+                showAlert('保存配置失败: ' + error.message, 'error');
+            }
+        }
+
+        // 加载配置
+        async function loadConfig() {
+            try {
+                const response = await fetch('/api/config');
+                const result = await response.json();
+                if (result.success) {
+                    configs = result.data;
+                    renderConfigList();
+                    showAlert('配置加载成功');
+                } else {
+                    showAlert(result.message, 'error');
+                }
+            } catch (error) {
+                showAlert('加载配置失败: ' + error.message, 'error');
+            }
+        }
+
+        // 保存Cookie
+        async function saveCookie() {
+            try {
+                const cookieData = document.getElementById('cookieData').value.trim();
+                if (!cookieData) {
+                    showAlert('请输入Cookie数据', 'error');
+                    return;
+                }
+
+                const data = JSON.parse(cookieData);
+                const response = await fetch('/api/cookie', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ data })
+                });
+                const result = await response.json();
+                if (result.success) {
+                    showAlert('Cookie保存成功');
+                } else {
+                    showAlert(result.message, 'error');
+                }
+            } catch (error) {
+                showAlert('保存Cookie失败: ' + error.message, 'error');
+            }
+        }
+
+        // 加载Cookie
+        async function loadCookie() {
+            try {
+                const response = await fetch('/api/cookie');
+                const result = await response.json();
+                if (result.success && result.data) {
+                    document.getElementById('cookieData').value = JSON.stringify(result.data, null, 2);
+                    showAlert('Cookie加载成功');
+                } else {
+                    showAlert('没有找到Cookie数据', 'error');
+                }
+            } catch (error) {
+                showAlert('加载Cookie失败: ' + error.message, 'error');
+            }
+        }
+
+        // 确认启动爬虫
+        function confirmStartCrawler() {
+            if (configs.length === 0) {
+                showAlert('请先添加商品配置', 'error');
+                return;
+            }
+            showConfirm(
+                '确认启动',
+                '确定要启动爬虫吗？',
+                async () => {
+                    try {
+                        const response = await fetch('/api/crawler/start', {
+                            method: 'POST'
+                        });
+                        const result = await response.json();
+                        if (result.success) {
+                            showAlert('爬虫启动成功');
+                            refreshStatus();
+                        } else {
+                            showAlert(result.message, 'error');
+                        }
+                    } catch (error) {
+                        showAlert('启动爬虫失败: ' + error.message, 'error');
+                    }
+                }
+            );
+        }
+
+        // 确认停止爬虫
+        function confirmStopCrawler() {
+            showConfirm(
+                '确认停止',
+                '确定要停止爬虫吗？',
+                async () => {
+                    try {
+                        const response = await fetch('/api/crawler/stop', {
+                            method: 'POST'
+                        });
+                        const result = await response.json();
+                        if (result.success) {
+                            showAlert('爬虫已停止');
+                            refreshStatus();
+                        } else {
+                            showAlert(result.message, 'error');
+                        }
+                    } catch (error) {
+                        showAlert('停止爬虫失败: ' + error.message, 'error');
+                    }
+                }
+            );
+        }
+
+        // 刷新状态
+        async function refreshStatus() {
+            try {
+                const response = await fetch('/api/crawler/status');
+                const result = await response.json();
+                if (result.success) {
+                    const status = result.data;
+                    const badge = document.getElementById('statusBadge');
+                    
+                    if (status.running) {
+                        badge.className = 'status-badge running';
+                        badge.textContent = '● 运行中';
+                    } else {
+                        badge.className = 'status-badge stopped';
+                        badge.textContent = '● 已停止';
+                    }
+
+                    // 更新日志
+                    const logPanel = document.getElementById('logPanel');
+                    if (status.logs && status.logs.length > 0) {
+                        logPanel.innerHTML = status.logs.map(log => `
+                            <div class="log-entry ${log.type}">
+                                [${new Date(log.time).toLocaleTimeString()}] ${log.message}
+                            </div>
+                        `).join('');
+                        logPanel.scrollTop = logPanel.scrollHeight;
+                    }
+                }
+            } catch (error) {
+                console.error('刷新状态失败:', error);
+            }
+        }
+
+        // 加载文件列表
+        async function loadFiles() {
+            try {
+                const response = await fetch('/api/files');
+                const result = await response.json();
+                if (result.success) {
+                    const fileList = document.getElementById('fileList');
+                    if (result.data.length === 0) {
+                        fileList.innerHTML = '<p style="color: #999; text-align: center;">暂无文件</p>';
+                        return;
+                    }
+
+                    fileList.innerHTML = result.data.map(file => `
+                        <div class="file-item">
+                            <div class="file-info">
+                                <div class="file-name">${file.name}</div>
+                                <div class="file-meta">
+                                    大小: ${(file.size / 1024).toFixed(2)} KB |
+                                    创建时间: ${new Date(file.created).toLocaleString('zh-CN')}
+                                </div>
+                            </div>
+                        </div>
+                    `).join('');
+                }
+            } catch (error) {
+                showAlert('加载文件列表失败: ' + error.message, 'error');
+            }
+        }
+
+        // 页面加载时初始化
+        window.onload = function() {
+            loadConfig();
+            loadCookie();
+            loadFiles();
+            refreshStatus();
+            
+            // 定时刷新状态
+            setInterval(refreshStatus, 3000);
+        };
+    </script>
+</body>
+</html>

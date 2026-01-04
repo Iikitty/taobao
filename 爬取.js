@@ -203,21 +203,50 @@ async function scrapeProductComments(productConfig, browser) {
     const targetUrl = productConfig['商品网址'];
     console.log('📍 导航到:', targetUrl);
     console.log('🔐 已使用cookie进行登录...');
-    await page.goto(targetUrl);
     
-    // 等待页面加载完成
-    await page.waitForLoadState('networkidle');
+    // 导航到页面，使用domcontentloaded而不是networkidle（淘宝页面可能有持续请求）
+    await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
+    
+    // 额外等待页面稳定
+    await page.waitForTimeout(5000);
+    
+    // 等待页面主要内容加载
+    try {
+        await page.waitForLoadState('load', { timeout: 10000 });
+    } catch (e) {
+        console.log('⚠️ 页面load事件超时，继续执行...');
+    }
     
     // 检查是否登录成功
-    const isLoggedIn = await page.evaluate(() => {
-      // 检查页面是否包含登录相关的元素
-      const loginElements = document.querySelectorAll('.login, .signin, [href*="login"], [href*="signin"]');
-      return loginElements.length === 0;
+    const loginStatus = await page.evaluate(() => {
+      // 检查是否有未登录的提示
+      const bodyText = document.body.innerText;
+      const hasLoginPrompt = bodyText.includes('请登录') ||
+                            bodyText.includes('登录') && bodyText.includes('注册');
+      
+      // 检查是否有用户登录后的元素（如用户名、头像等）
+      const hasUserElements = document.querySelector('.site-nav-user') ||
+                             document.querySelector('[class*="user"]') ||
+                             document.querySelector('[class*="avatar"]');
+      
+      // 检查登录/注册按钮
+      const loginBtn = document.querySelectorAll('[href*="login"], .login-btn, [class*="Login"]');
+      
+      return {
+        hasLoginPrompt,
+        hasUserElements,
+        loginButtonCount: loginBtn.length,
+        bodyText: bodyText.substring(0, 500) // 用于调试，显示部分页面文本
+      };
     });
     
-    if (!isLoggedIn) {
-      console.log('❌ 登录失败，请检查cookie是否有效');
-      return [];
+    // 更宽松的登录检查：不严格依赖登录状态，除非明确提示需要登录
+    if (loginStatus.hasLoginPrompt && loginStatus.loginButtonCount > 0 && !loginStatus.hasUserElements) {
+      console.log('❌ 登录失败，页面提示需要登录');
+      console.log('页面文本片段:', loginStatus.bodyText);
+      return null;
+    } else {
+      console.log('✅ Cookie已加载，继续爬取');
     }
     
     console.log('✅ 登录成功，开始爬取商品规格...');
@@ -821,7 +850,13 @@ async function main() {
     }
     
     // 生成结果Excel文件
-    if (allResults.length > 0) {
+    // 检查是否有有效数据（至少有一条评论或追评）
+    const hasValidData = allResults.some(result =>
+      (result.comments && result.comments.length > 0) ||
+      (result.commentPairs && result.commentPairs.length > 0)
+    );
+    
+    if (hasValidData) {
       // 获取第一个商品的下载路径作为全局下载路径
       // 如果需要为每个商品单独设置路径，可以修改这里的逻辑
       const downloadPath = configs[0]['下载路径'] || './save_data/';
@@ -830,7 +865,7 @@ async function main() {
         console.log(`✅ 所有商品评论爬取完成，结果已保存到: ${resultPath}`);
       }
     } else {
-      console.log('❌ 没有成功爬取到任何评论');
+      console.log('❌ 没有成功爬取到任何评论，不保存结果文件');
     }
   } catch (error) {
     console.error('❌ 程序执行出错:', error);
